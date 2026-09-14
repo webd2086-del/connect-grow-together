@@ -78,6 +78,16 @@ function TemplatesPage() {
                 size="sm"
                 variant="outline"
                 onClick={() => {
+                  setPreviewProspectId((prev) => prev || store.prospects[0]?.id || "");
+                  setPreviewId(t.id);
+                }}
+              >
+                <Eye className="size-3.5" /> Preview
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
                   void navigator.clipboard?.writeText(`${t.subject}\n\n${t.body}`);
                   toast.success("Template copied");
                 }}
