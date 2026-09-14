@@ -197,12 +197,20 @@ export const sendCampaignBatch = createServerFn({ method: "POST" })
       }
 
       const first = (prospect.contact_name || "").trim().split(/\s+/)[0] ?? "";
+      const location = [prospect.city, prospect.country].filter(Boolean).join(", ");
       const vars: Record<string, string> = {
         first_name: first || prospect.company,
         contact_name: prospect.contact_name || prospect.company,
+        full_name: prospect.contact_name || prospect.company,
         company: prospect.company,
+        company_name: prospect.company,
+        school_name: prospect.company,
+        brand: prospect.company,
+        website: prospect.website ?? "",
+        industry: prospect.industry ?? "",
         city: prospect.city ?? "",
         country: prospect.country ?? "",
+        location: location || (prospect.country ?? ""),
         sender_name: senderName,
       };
       const subject = fill(recipient.subject || campaign.subject, vars);
