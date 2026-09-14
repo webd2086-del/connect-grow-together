@@ -12,30 +12,51 @@ const b64 = (s: string) =>
   btoa(Array.from(new TextEncoder().encode(s), (b) => String.fromCharCode(b)).join(""));
 const header = (v: string) => (/^[\x00-\x7F]*$/.test(v) ? v : `=?UTF-8?B?${b64(v)}?=`);
 
-function rawEmail(opts: { to: string; from: string; subject: string; body: string }) {
+function rawEmail(opts: { to: string; from: string; subject: string; body: string; html?: string | undefined }) {
+  const head = [`From: ${opts.from}`, `To: ${opts.to}`, `Subject: ${header(opts.subject)}`, "MIME-Version: 1.0"];
+  if (!opts.html) {
+    return encodeRaw([...head, 'Content-Type: text/plain; charset="UTF-8"', "", opts.body].join("\r\n"));
+  }
+  const boundary = `oos_${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`;
   const message = [
-    `From: ${opts.from}`,
-    `To: ${opts.to}`,
-    `Subject: ${header(opts.subject)}`,
-    "MIME-Version: 1.0",
+    ...head,
+    `Content-Type: multipart/alternative; boundary="${boundary}"`,
+    "",
+    `--${boundary}`,
     'Content-Type: text/plain; charset="UTF-8"',
     "",
     opts.body,
+    `--${boundary}`,
+    'Content-Type: text/html; charset="UTF-8"',
+    "",
+    opts.html,
+    `--${boundary}--`,
   ].join("\r\n");
-  return b64(message).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  return encodeRaw(message);
 }
 
-function fill(text: string, vars: Record<string, string>) {
-  return (
-    text
-      // unknown or empty placeholders disappear instead of leaking "{{...}}"
-      .replace(/\{\{\s*([a-z_0-9]+)\s*\}\}/gi, (_m, key: string) => vars[key.toLowerCase()] ?? "")
-      // tidy up the gaps an empty value leaves behind ("in ." / "in ,")
-      .replace(/[ \t]+([.,!?])/g, "$1")
-      .replace(/\b(in|at|from|for|to)\s+([.,!?])/gi, "$2")
-      .replace(/[ \t]{2,}/g, " ")
-  );
+const encodeRaw = (message: string) => b64(message).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+
+const fill = fillTemplate;
+
+const escapeHtml = (s: string) =>
+  s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+/** Plain text turned into a simple HTML body, with an invisible open-tracking pixel. */
+function htmlBody(text: string, pixelUrl?: string | null) {
+  const paragraphs = text
+    .split(/\n{2,}/)
+    .map((p) => `<p style="margin:0 0 14px">${escapeHtml(p).replace(/\n/g, "<br/>")}</p>`)
+    .join("");
+  const pixel = pixelUrl ? `<img src="${pixelUrl}" width="1" height="1" alt="" style="display:none"/>` : "";
+  return `<!doctype html><html><body style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.55;color:#111">${paragraphs}${pixel}</body></html>`;
 }
+
+function appBaseUrl() {
+  return (process.env['APP_URL'] ?? "https://project--94b832e8-e1f9-46f5-8e5b-4a868ca16948.lovable.app").replace(/\/$/, "");
+}
+
+const trackingPixelUrl = (recipientId: string) => `${appBaseUrl()}/api/public/open/${recipientId}.gif`;
 
 export interface SendBatchResult {
   sent: number;
