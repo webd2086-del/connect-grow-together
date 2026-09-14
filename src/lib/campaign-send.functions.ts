@@ -400,3 +400,148 @@ export const syncCampaignReplies = createServerFn({ method: "POST" })
     }
     return { checked: rows.length, replies };
   });
+
+export interface TestSendResult {
+  ok: boolean;
+  to?: string;
+  error?: string;
+  needsConnection?: boolean;
+  reconnectRequired?: boolean;
+}
+
+/** Sends one filled-in copy of a campaign to the signed-in user, touching no prospects. */
+export const sendTestEmail = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { campaignId: string; to?: string; prospectId?: string }) => {
+    if (!input?.campaignId) throw new Error("Missing campaignId");
+    return { campaignId: input.campaignId, to: input.to, prospectId: input.prospectId };
+  })
+  .handler(async ({ data, context }): Promise<TestSendResult> => {
+    const { supabase, userId, claims } = context;
+
+    const { data: campaign } = await supabase
+      .from("campaigns")
+      .select("*")
+      .eq("id", data.campaignId)
+      .maybeSingle();
+    if (!campaign) throw new Error("Campaign not found");
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("display_name")
+      .eq("id", userId)
+      .maybeSingle();
+    const senderName = profile?.display_name ?? "";
+
+    let account: { id: string; address: string; provider: string } | null = null;
+    if (campaign.email_account_id) {
+      const { data: acct } = await supabase
+        .from("email_accounts")
+        .select("id, address, provider")
+        .eq("id", campaign.email_account_id)
+        .maybeSingle();
+      account = acct ?? null;
+    }
+    if (!account) {
+      const { data: accts } = await supabase
+        .from("email_accounts")
+        .select("id, address, provider")
+        .eq("user_id", userId)
+        .eq("status", "connected")
+        .order("created_at", { ascending: true });
+      account = accts?.[0] ?? null;
+    }
+
+    const { getSmtpConfig } = await import("@/server/smtpAccounts.server");
+    const smtpConfig = account?.provider === "smtp" ? await getSmtpConfig(userId, account.address) : null;
+    const connectionAPIKey = smtpConfig ? null : await getConnectionKeyForUser(userId, GMAIL_CONNECTOR_ID);
+    if (!smtpConfig && !connectionAPIKey) return { ok: false, needsConnection: true };
+
+    let fromAddress = account?.address ?? "";
+    if (!fromAddress && connectionAPIKey) {
+      const profRes = await callAsAppUser({
+        gatewayBaseUrl: GATEWAY_BASE_URL,
+        connectionAPIKey,
+        connectorId: GMAIL_CONNECTOR_ID,
+        path: "/gmail/v1/users/me/profile",
+      });
+      if (await appUserReconnectRequired(profRes)) return { ok: false, reconnectRequired: true };
+      if (profRes.ok) fromAddress = ((await profRes.json()) as { emailAddress?: string }).emailAddress ?? "";
+    }
+
+    const claimEmail = (claims as { email?: string } | undefined)?.email ?? "";
+    const to = (data.to || claimEmail || fromAddress).trim();
+    if (!to) return { ok: false, error: "No address to send the test to" };
+
+    let sample: {
+      company: string;
+      contact_name: string;
+      email: string;
+      website: string | null;
+      industry: string | null;
+      city: string;
+      country: string;
+    } | null = null;
+    if (data.prospectId) {
+      const { data: p } = await supabase
+        .from("prospects")
+        .select("company, contact_name, email, website, industry, city, country")
+        .eq("id", data.prospectId)
+        .maybeSingle();
+      sample = p ?? null;
+    }
+
+    const vars = buildVars(
+      sample
+        ? {
+            company: sample.company,
+            contactName: sample.contact_name,
+            email: sample.email,
+            website: sample.website,
+            industry: sample.industry,
+            city: sample.city,
+            country: sample.country,
+          }
+        : {
+            company: "Sample Company",
+            contactName: "Alex Doe",
+            email: to,
+            city: "Nairobi",
+            country: "Kenya",
+          },
+      senderName,
+    );
+
+    const subject = `[TEST] ${fill(campaign.subject, vars)}`;
+    const body = fill(campaign.body, vars);
+    const html = htmlBody(body);
+    const from = senderName && fromAddress ? `${header(senderName)} <${fromAddress}>` : fromAddress;
+
+    if (smtpConfig) {
+      const { openSmtpSession } = await import("@/server/smtpClient.server");
+      try {
+        const session = await openSmtpSession(smtpConfig);
+        await session.send({ from: fromAddress, fromName: senderName || undefined, to, subject, text: body, html });
+        await session.quit();
+        return { ok: true, to };
+      } catch (err) {
+        return { ok: false, error: err instanceof Error ? err.message : "Send failed" };
+      }
+    }
+
+    const res = await callAsAppUser({
+      gatewayBaseUrl: GATEWAY_BASE_URL,
+      connectionAPIKey: connectionAPIKey!,
+      connectorId: GMAIL_CONNECTOR_ID,
+      path: "/gmail/v1/users/me/messages/send",
+      requiredScopes: SEND_SCOPES,
+      init: {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ raw: rawEmail({ to, from, subject, body, html }) }),
+      },
+    });
+    if (await appUserReconnectRequired(res)) return { ok: false, reconnectRequired: true };
+    if (!res.ok) return { ok: false, error: `${res.status} ${(await res.text()).slice(0, 200)}` };
+    return { ok: true, to };
+  });
