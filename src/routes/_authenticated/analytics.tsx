@@ -42,6 +42,28 @@ function AnalyticsPage() {
     return { name: c.name, sent: s.sent, replies: s.replied, won: s.won };
   });
 
+  const campaignPerformance = store.campaigns
+    .map((c) => {
+      const rows = store.recipients.filter((r) => r.campaignId === c.id);
+      const sent = rows.filter((r) => r.sentAt).length;
+      const opened = rows.filter((r) => r.openedAt).length;
+      const totalOpens = rows.reduce((n, r) => n + (r.openCount ?? 0), 0);
+      const replied = rows.filter((r) => r.repliedAt).length;
+      return {
+        id: c.id,
+        name: c.name,
+        status: c.status,
+        recipients: rows.length,
+        sent,
+        opened,
+        totalOpens,
+        replied,
+        openRate: pct(opened, sent),
+        replyRate: pct(replied, sent),
+      };
+    })
+    .sort((a, b) => b.sent - a.sent);
+
   const categoryRows = store.categories.map((cat) => {
     const ids = new Set(store.campaigns.filter((c) => c.categoryId === cat.id).map((c) => c.id));
     const rows = store.recipients.filter((r) => ids.has(r.campaignId));
