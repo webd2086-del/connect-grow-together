@@ -201,6 +201,15 @@ function CampaignDetail() {
             <Button variant="outline" onClick={() => { setPicked([]); setPicking((v) => !v); }}>
               <UserPlus className="size-4" /> Add recipients
             </Button>
+            <Button variant="outline" onClick={() => setPreviewOpen(true)}>
+              <Eye className="size-4" /> Preview as recipient
+            </Button>
+            <Button variant="outline" disabled={testing} onClick={() => void sendTest()}>
+              <MailCheck className="size-4" /> {testing ? "Sending…" : "Send test to me"}
+            </Button>
+            <Button variant="outline" disabled={syncing} onClick={() => void syncReplies()}>
+              <RefreshCw className={syncing ? "size-4 animate-spin" : "size-4"} /> Check replies
+            </Button>
             {campaign.status === "sending" ? (
               <Button variant="outline" onClick={() => { store.updateCampaign(campaign.id, { status: "paused" }); toast.message("Campaign paused"); }}>
                 <Pause className="size-4" /> Pause
