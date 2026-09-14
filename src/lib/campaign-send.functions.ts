@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { appUserReconnectRequired, callAsAppUser } from "@/integrations/lovable/appUserConnector";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { getConnectionKeyForUser } from "@/server/appUserConnections.server";
+import { buildVars, fillTemplate } from "@/lib/outreach/merge";
 
 const GATEWAY_BASE_URL = "https://connector-gateway.lovable.dev";
 const GMAIL_CONNECTOR_ID = "google_mail";
@@ -11,30 +12,51 @@ const b64 = (s: string) =>
   btoa(Array.from(new TextEncoder().encode(s), (b) => String.fromCharCode(b)).join(""));
 const header = (v: string) => (/^[\x00-\x7F]*$/.test(v) ? v : `=?UTF-8?B?${b64(v)}?=`);
 
-function rawEmail(opts: { to: string; from: string; subject: string; body: string }) {
+function rawEmail(opts: { to: string; from: string; subject: string; body: string; html?: string | undefined }) {
+  const head = [`From: ${opts.from}`, `To: ${opts.to}`, `Subject: ${header(opts.subject)}`, "MIME-Version: 1.0"];
+  if (!opts.html) {
+    return encodeRaw([...head, 'Content-Type: text/plain; charset="UTF-8"', "", opts.body].join("\r\n"));
+  }
+  const boundary = `oos_${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`;
   const message = [
-    `From: ${opts.from}`,
-    `To: ${opts.to}`,
-    `Subject: ${header(opts.subject)}`,
-    "MIME-Version: 1.0",
+    ...head,
+    `Content-Type: multipart/alternative; boundary="${boundary}"`,
+    "",
+    `--${boundary}`,
     'Content-Type: text/plain; charset="UTF-8"',
     "",
     opts.body,
+    `--${boundary}`,
+    'Content-Type: text/html; charset="UTF-8"',
+    "",
+    opts.html,
+    `--${boundary}--`,
   ].join("\r\n");
-  return b64(message).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  return encodeRaw(message);
 }
 
-function fill(text: string, vars: Record<string, string>) {
-  return (
-    text
-      // unknown or empty placeholders disappear instead of leaking "{{...}}"
-      .replace(/\{\{\s*([a-z_0-9]+)\s*\}\}/gi, (_m, key: string) => vars[key.toLowerCase()] ?? "")
-      // tidy up the gaps an empty value leaves behind ("in ." / "in ,")
-      .replace(/[ \t]+([.,!?])/g, "$1")
-      .replace(/\b(in|at|from|for|to)\s+([.,!?])/gi, "$2")
-      .replace(/[ \t]{2,}/g, " ")
-  );
+const encodeRaw = (message: string) => b64(message).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+
+const fill = fillTemplate;
+
+const escapeHtml = (s: string) =>
+  s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+/** Plain text turned into a simple HTML body, with an invisible open-tracking pixel. */
+function htmlBody(text: string, pixelUrl?: string | null) {
+  const paragraphs = text
+    .split(/\n{2,}/)
+    .map((p) => `<p style="margin:0 0 14px">${escapeHtml(p).replace(/\n/g, "<br/>")}</p>`)
+    .join("");
+  const pixel = pixelUrl ? `<img src="${pixelUrl}" width="1" height="1" alt="" style="display:none"/>` : "";
+  return `<!doctype html><html><body style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.55;color:#111">${paragraphs}${pixel}</body></html>`;
 }
+
+function appBaseUrl() {
+  return (process.env['APP_URL'] ?? "https://project--94b832e8-e1f9-46f5-8e5b-4a868ca16948.lovable.app").replace(/\/$/, "");
+}
+
+const trackingPixelUrl = (recipientId: string) => `${appBaseUrl()}/api/public/open/${recipientId}.gif`;
 
 export interface SendBatchResult {
   sent: number;
@@ -132,7 +154,7 @@ export const sendCampaignBatch = createServerFn({ method: "POST" })
 
     // ---- Transport ---------------------------------------------------------
     let reconnect = false;
-    let smtpSession: { send: (m: { from: string; fromName?: string | undefined; to: string; subject: string; text: string }) => Promise<void>; quit: () => Promise<void> } | null = null;
+    let smtpSession: { send: (m: { from: string; fromName?: string | undefined; to: string; subject: string; text: string; html?: string | undefined }) => Promise<void>; quit: () => Promise<void> } | null = null;
 
     if (smtpConfig) {
       const { openSmtpSession } = await import("@/server/smtpClient.server");
@@ -147,10 +169,10 @@ export const sendCampaignBatch = createServerFn({ method: "POST" })
       }
     }
 
-    const sendOne = async (to: string, subject: string, body: string): Promise<SendOutcome> => {
+    const sendOne = async (to: string, subject: string, body: string, html?: string): Promise<SendOutcome> => {
       if (smtpSession) {
         try {
-          await smtpSession.send({ from: fromAddress, fromName: senderName || undefined, to, subject, text: body });
+          await smtpSession.send({ from: fromAddress, fromName: senderName || undefined, to, subject, text: body, html });
           return { ok: true };
         } catch (err) {
           return { ok: false, error: err instanceof Error ? err.message : "Send failed" };
@@ -165,7 +187,7 @@ export const sendCampaignBatch = createServerFn({ method: "POST" })
         init: {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ raw: rawEmail({ to, from, subject, body }) }),
+          body: JSON.stringify({ raw: rawEmail({ to, from, subject, body, html }) }),
         },
       });
       if (await appUserReconnectRequired(res)) {
@@ -196,27 +218,27 @@ export const sendCampaignBatch = createServerFn({ method: "POST" })
         continue;
       }
 
-      const first = (prospect.contact_name || "").trim().split(/\s+/)[0] ?? "";
-      const location = [prospect.city, prospect.country].filter(Boolean).join(", ");
-      const vars: Record<string, string> = {
-        first_name: first || prospect.company,
-        contact_name: prospect.contact_name || prospect.company,
-        full_name: prospect.contact_name || prospect.company,
-        company: prospect.company,
-        company_name: prospect.company,
-        school_name: prospect.company,
-        brand: prospect.company,
-        website: prospect.website ?? "",
-        industry: prospect.industry ?? "",
-        city: prospect.city ?? "",
-        country: prospect.country ?? "",
-        location: location || (prospect.country ?? ""),
-        sender_name: senderName,
-      };
+      const vars = buildVars(
+        {
+          company: prospect.company,
+          contactName: prospect.contact_name,
+          email: prospect.email,
+          website: prospect.website,
+          industry: prospect.industry,
+          city: prospect.city,
+          country: prospect.country,
+        },
+        senderName,
+      );
       const subject = fill(recipient.subject || campaign.subject, vars);
       const body = fill(recipient.body || campaign.body, vars);
 
-      const outcome = await sendOne(prospect.email, subject, body);
+      const outcome = await sendOne(
+        prospect.email,
+        subject,
+        body,
+        htmlBody(body, trackingPixelUrl(recipient.id)),
+      );
 
       if (!outcome.ok && reconnect) {
         return { sent, failed: errors.length, remaining: 0, errors, reconnectRequired: true };
@@ -377,4 +399,149 @@ export const syncCampaignReplies = createServerFn({ method: "POST" })
       replies += 1;
     }
     return { checked: rows.length, replies };
+  });
+
+export interface TestSendResult {
+  ok: boolean;
+  to?: string;
+  error?: string;
+  needsConnection?: boolean;
+  reconnectRequired?: boolean;
+}
+
+/** Sends one filled-in copy of a campaign to the signed-in user, touching no prospects. */
+export const sendTestEmail = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { campaignId: string; to?: string; prospectId?: string }) => {
+    if (!input?.campaignId) throw new Error("Missing campaignId");
+    return { campaignId: input.campaignId, to: input.to, prospectId: input.prospectId };
+  })
+  .handler(async ({ data, context }): Promise<TestSendResult> => {
+    const { supabase, userId, claims } = context;
+
+    const { data: campaign } = await supabase
+      .from("campaigns")
+      .select("*")
+      .eq("id", data.campaignId)
+      .maybeSingle();
+    if (!campaign) throw new Error("Campaign not found");
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("display_name")
+      .eq("id", userId)
+      .maybeSingle();
+    const senderName = profile?.display_name ?? "";
+
+    let account: { id: string; address: string; provider: string } | null = null;
+    if (campaign.email_account_id) {
+      const { data: acct } = await supabase
+        .from("email_accounts")
+        .select("id, address, provider")
+        .eq("id", campaign.email_account_id)
+        .maybeSingle();
+      account = acct ?? null;
+    }
+    if (!account) {
+      const { data: accts } = await supabase
+        .from("email_accounts")
+        .select("id, address, provider")
+        .eq("user_id", userId)
+        .eq("status", "connected")
+        .order("created_at", { ascending: true });
+      account = accts?.[0] ?? null;
+    }
+
+    const { getSmtpConfig } = await import("@/server/smtpAccounts.server");
+    const smtpConfig = account?.provider === "smtp" ? await getSmtpConfig(userId, account.address) : null;
+    const connectionAPIKey = smtpConfig ? null : await getConnectionKeyForUser(userId, GMAIL_CONNECTOR_ID);
+    if (!smtpConfig && !connectionAPIKey) return { ok: false, needsConnection: true };
+
+    let fromAddress = account?.address ?? "";
+    if (!fromAddress && connectionAPIKey) {
+      const profRes = await callAsAppUser({
+        gatewayBaseUrl: GATEWAY_BASE_URL,
+        connectionAPIKey,
+        connectorId: GMAIL_CONNECTOR_ID,
+        path: "/gmail/v1/users/me/profile",
+      });
+      if (await appUserReconnectRequired(profRes)) return { ok: false, reconnectRequired: true };
+      if (profRes.ok) fromAddress = ((await profRes.json()) as { emailAddress?: string }).emailAddress ?? "";
+    }
+
+    const claimEmail = (claims as { email?: string } | undefined)?.email ?? "";
+    const to = (data.to || claimEmail || fromAddress).trim();
+    if (!to) return { ok: false, error: "No address to send the test to" };
+
+    let sample: {
+      company: string;
+      contact_name: string;
+      email: string;
+      website: string | null;
+      industry: string | null;
+      city: string;
+      country: string;
+    } | null = null;
+    if (data.prospectId) {
+      const { data: p } = await supabase
+        .from("prospects")
+        .select("company, contact_name, email, website, industry, city, country")
+        .eq("id", data.prospectId)
+        .maybeSingle();
+      sample = p ?? null;
+    }
+
+    const vars = buildVars(
+      sample
+        ? {
+            company: sample.company,
+            contactName: sample.contact_name,
+            email: sample.email,
+            website: sample.website,
+            industry: sample.industry,
+            city: sample.city,
+            country: sample.country,
+          }
+        : {
+            company: "Sample Company",
+            contactName: "Alex Doe",
+            email: to,
+            city: "Nairobi",
+            country: "Kenya",
+          },
+      senderName,
+    );
+
+    const subject = `[TEST] ${fill(campaign.subject, vars)}`;
+    const body = fill(campaign.body, vars);
+    const html = htmlBody(body);
+    const from = senderName && fromAddress ? `${header(senderName)} <${fromAddress}>` : fromAddress;
+
+    if (smtpConfig) {
+      const { openSmtpSession } = await import("@/server/smtpClient.server");
+      try {
+        const session = await openSmtpSession(smtpConfig);
+        await session.send({ from: fromAddress, fromName: senderName || undefined, to, subject, text: body, html });
+        await session.quit();
+        return { ok: true, to };
+      } catch (err) {
+        return { ok: false, error: err instanceof Error ? err.message : "Send failed" };
+      }
+    }
+
+    const res = await callAsAppUser({
+      gatewayBaseUrl: GATEWAY_BASE_URL,
+      connectionAPIKey: connectionAPIKey!,
+      connectorId: GMAIL_CONNECTOR_ID,
+      path: "/gmail/v1/users/me/messages/send",
+      requiredScopes: SEND_SCOPES,
+      init: {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ raw: rawEmail({ to, from, subject, body, html }) }),
+      },
+    });
+    if (await appUserReconnectRequired(res)) return { ok: false, reconnectRequired: true };
+    if (!res.ok) return { ok: false, error: `${res.status} ${(await res.text()).slice(0, 200)}` };
+    return { ok: true, to };
   });

@@ -1,13 +1,21 @@
 import * as React from "react";
 import { createFileRoute, Link, useParams } from "@tanstack/react-router";
-import { ArrowLeft, Ban, Pause, Play, Send, UserPlus } from "lucide-react";
+import { ArrowLeft, Ban, Eye, MailCheck, Pause, Play, RefreshCw, Send, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { campaignStats, useLookups, useOutreach } from "@/lib/outreach/store";
 import { formatDate, formatShort, pct } from "@/lib/outreach/format";
+import { buildVars, fillTemplate } from "@/lib/outreach/merge";
 import { CategoryChip, EmptyState, Pill, ProgressBar, SectionCard, StatusBadge } from "@/components/app/primitives";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useServerFn } from "@tanstack/react-start";
-import { sendCampaignBatch } from "@/lib/campaign-send.functions";
+import { sendCampaignBatch, sendTestEmail, syncCampaignReplies } from "@/lib/campaign-send.functions";
 
 export const Route = createFileRoute("/_authenticated/campaigns/$campaignId")({
   head: () => ({
@@ -26,10 +34,55 @@ function CampaignDetail() {
   const store = useOutreach();
   const lookups = useLookups();
   const sendBatchFn = useServerFn(sendCampaignBatch);
+  const testSendFn = useServerFn(sendTestEmail);
+  const syncRepliesFn = useServerFn(syncCampaignReplies);
   const [sending, setSending] = React.useState(false);
+  const [testing, setTesting] = React.useState(false);
+  const [syncing, setSyncing] = React.useState(false);
+  const [previewOpen, setPreviewOpen] = React.useState(false);
+  const [previewId, setPreviewId] = React.useState<string>("");
   const [picking, setPicking] = React.useState(false);
   const [picked, setPicked] = React.useState<string[]>([]);
   const campaign = store.campaigns.find((c) => c.id === campaignId);
+
+  const sendTest = async () => {
+    if (!campaign) return;
+    setTesting(true);
+    try {
+      const res = await testSendFn({
+        data: { campaignId: campaign.id, ...(previewId ? { prospectId: previewId } : {}) },
+      });
+      if (res.needsConnection) {
+        toast.error("Connect an email account first", { description: "Add Gmail or SMTP on the Email Accounts page." });
+      } else if (res.reconnectRequired) {
+        toast.error("Gmail access expired", { description: "Reconnect Gmail on the Email Accounts page." });
+      } else if (res.ok) {
+        toast.success(`Test sent to ${res.to}`, { description: "Check your inbox for the [TEST] email." });
+      } else {
+        toast.error("Test send failed", { description: res.error ?? "Please try again." });
+      }
+    } catch (err) {
+      toast.error("Test send failed", { description: err instanceof Error ? err.message : "Please try again." });
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  const syncReplies = async () => {
+    if (!campaign) return;
+    setSyncing(true);
+    try {
+      const res = await syncRepliesFn({ data: { campaignId: campaign.id } });
+      if (res.reconnectRequired) toast.error("Gmail access expired", { description: "Reconnect Gmail to check replies." });
+      else if (res.unsupported) toast.message("Reply checking needs Gmail", { description: "Connect Gmail to detect replies automatically." });
+      else toast.success(`${res.replies} new repl${res.replies === 1 ? "y" : "ies"} found`, { description: `${res.checked} sent emails checked.` });
+      await store.refresh();
+    } catch (err) {
+      toast.error("Could not check replies", { description: err instanceof Error ? err.message : "Please try again." });
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const send = async () => {
     if (!campaign) return;
@@ -78,6 +131,29 @@ function CampaignDetail() {
       p.status !== "do_not_contact",
   );
 
+  const previewCandidates = rows
+    .map((r) => lookups.prospect(r.prospectId))
+    .filter((p): p is NonNullable<typeof p> => !!p);
+  const previewProspect =
+    previewCandidates.find((p) => p.id === previewId) ?? previewCandidates[0] ?? store.prospects[0] ?? null;
+  const previewVars = buildVars(
+    previewProspect
+      ? {
+          company: previewProspect.company,
+          contactName: previewProspect.contactName,
+          email: previewProspect.email,
+          website: previewProspect.website ?? null,
+          industry: previewProspect.industry ?? null,
+          city: previewProspect.city,
+          country: previewProspect.country,
+        }
+      : { company: "Sample Company", contactName: "Alex Doe", city: "Nairobi", country: "Kenya" },
+    store.user.name,
+  );
+  const previewSubject = fillTemplate(campaign.subject, previewVars);
+  const previewBody = fillTemplate(campaign.body, previewVars);
+
+
   return (
     <div className="space-y-6">
       <Link to="/campaigns" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
@@ -124,6 +200,21 @@ function CampaignDetail() {
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" onClick={() => { setPicked([]); setPicking((v) => !v); }}>
               <UserPlus className="size-4" /> Add recipients
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setPreviewId((prev) => prev || previewCandidates[0]?.id || store.prospects[0]?.id || "");
+                setPreviewOpen(true);
+              }}
+            >
+              <Eye className="size-4" /> Preview as recipient
+            </Button>
+            <Button variant="outline" disabled={testing} onClick={() => void sendTest()}>
+              <MailCheck className="size-4" /> {testing ? "Sending…" : "Send test to me"}
+            </Button>
+            <Button variant="outline" disabled={syncing} onClick={() => void syncReplies()}>
+              <RefreshCw className={syncing ? "size-4 animate-spin" : "size-4"} /> Check replies
             </Button>
             {campaign.status === "sending" ? (
               <Button variant="outline" onClick={() => { store.updateCampaign(campaign.id, { status: "paused" }); toast.message("Campaign paused"); }}>
@@ -263,6 +354,55 @@ function CampaignDetail() {
           </table>
         </div>
       </SectionCard>
+
+      <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Preview as recipient</DialogTitle>
+            <DialogDescription>Exactly what this person receives, with every detail filled in.</DialogDescription>
+          </DialogHeader>
+
+          <label className="flex items-center gap-2 text-sm text-muted-foreground">
+            Preview for
+            <select
+              value={previewProspect?.id ?? ""}
+              onChange={(e) => setPreviewId(e.target.value)}
+              className="h-9 flex-1 rounded-lg border border-border bg-card px-2.5 text-sm text-foreground"
+            >
+              {(previewCandidates.length ? previewCandidates : store.prospects).map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.contactName || p.company} — {p.email}
+                </option>
+              ))}
+              {previewCandidates.length === 0 && store.prospects.length === 0 ? (
+                <option value="">Sample recipient</option>
+              ) : null}
+            </select>
+          </label>
+
+          <div className="rounded-lg border border-border">
+            <div className="border-b border-border px-4 py-3 text-sm">
+              <p className="text-muted-foreground">
+                From: <span className="text-foreground">{account ? `${account.label} <${account.address}>` : "no sending account linked"}</span>
+              </p>
+              <p className="text-muted-foreground">
+                To: <span className="text-foreground">{previewProspect?.email ?? "sample@example.com"}</span>
+              </p>
+              <p className="mt-1 font-medium text-foreground">{previewSubject}</p>
+            </div>
+            <div className="max-h-80 overflow-y-auto whitespace-pre-wrap px-4 py-4 text-sm text-foreground">
+              {previewBody}
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setPreviewOpen(false)}>Close</Button>
+            <Button disabled={testing} onClick={() => void sendTest()}>
+              <MailCheck className="size-4" /> {testing ? "Sending…" : "Send this to me"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
