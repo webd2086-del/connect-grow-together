@@ -131,6 +131,29 @@ function CampaignDetail() {
       p.status !== "do_not_contact",
   );
 
+  const previewCandidates = rows
+    .map((r) => lookups.prospect(r.prospectId))
+    .filter((p): p is NonNullable<typeof p> => !!p);
+  const previewProspect =
+    previewCandidates.find((p) => p.id === previewId) ?? previewCandidates[0] ?? store.prospects[0] ?? null;
+  const previewVars = buildVars(
+    previewProspect
+      ? {
+          company: previewProspect.company,
+          contactName: previewProspect.contactName,
+          email: previewProspect.email,
+          website: previewProspect.website ?? null,
+          industry: previewProspect.industry ?? null,
+          city: previewProspect.city,
+          country: previewProspect.country,
+        }
+      : { company: "Sample Company", contactName: "Alex Doe", city: "Nairobi", country: "Kenya" },
+    store.user.name,
+  );
+  const previewSubject = fillTemplate(campaign.subject, previewVars);
+  const previewBody = fillTemplate(campaign.body, previewVars);
+
+
   return (
     <div className="space-y-6">
       <Link to="/campaigns" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
