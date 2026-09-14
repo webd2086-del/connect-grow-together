@@ -348,6 +348,55 @@ function CampaignDetail() {
           </table>
         </div>
       </SectionCard>
+
+      <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Preview as recipient</DialogTitle>
+            <DialogDescription>Exactly what this person receives, with every detail filled in.</DialogDescription>
+          </DialogHeader>
+
+          <label className="flex items-center gap-2 text-sm text-muted-foreground">
+            Preview for
+            <select
+              value={previewProspect?.id ?? ""}
+              onChange={(e) => setPreviewId(e.target.value)}
+              className="h-9 flex-1 rounded-lg border border-border bg-card px-2.5 text-sm text-foreground"
+            >
+              {(previewCandidates.length ? previewCandidates : store.prospects).map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.contactName || p.company} — {p.email}
+                </option>
+              ))}
+              {previewCandidates.length === 0 && store.prospects.length === 0 ? (
+                <option value="">Sample recipient</option>
+              ) : null}
+            </select>
+          </label>
+
+          <div className="rounded-lg border border-border">
+            <div className="border-b border-border px-4 py-3 text-sm">
+              <p className="text-muted-foreground">
+                From: <span className="text-foreground">{account ? `${account.label} <${account.address}>` : "no sending account linked"}</span>
+              </p>
+              <p className="text-muted-foreground">
+                To: <span className="text-foreground">{previewProspect?.email ?? "sample@example.com"}</span>
+              </p>
+              <p className="mt-1 font-medium text-foreground">{previewSubject}</p>
+            </div>
+            <div className="max-h-80 overflow-y-auto whitespace-pre-wrap px-4 py-4 text-sm text-foreground">
+              {previewBody}
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setPreviewOpen(false)}>Close</Button>
+            <Button disabled={testing} onClick={() => void sendTest()}>
+              <MailCheck className="size-4" /> {testing ? "Sending…" : "Send this to me"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
