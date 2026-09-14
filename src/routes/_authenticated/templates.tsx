@@ -110,6 +110,67 @@ function TemplatesPage() {
         ))}
       </div>
 
+      <Dialog open={previewId !== null} onOpenChange={(v) => !v && setPreviewId(null)}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Preview as recipient</DialogTitle>
+            <DialogDescription>Exactly how this template reads once a prospect's details are filled in.</DialogDescription>
+          </DialogHeader>
+          {(() => {
+            const t = store.templates.find((x) => x.id === previewId);
+            if (!t) return null;
+            const p = store.prospects.find((x) => x.id === previewProspectId) ?? store.prospects[0] ?? null;
+            const vars = buildVars(
+              p
+                ? {
+                    company: p.company,
+                    contactName: p.contactName,
+                    email: p.email,
+                    website: p.website ?? null,
+                    industry: p.industry ?? null,
+                    city: p.city,
+                    country: p.country,
+                  }
+                : { company: "Sample Company", contactName: "Alex Doe", city: "Nairobi", country: "Kenya" },
+              store.user.name,
+            );
+            return (
+              <>
+                <label className="flex items-center gap-2 text-sm text-muted-foreground">
+                  Preview for
+                  <select
+                    value={p?.id ?? ""}
+                    onChange={(e) => setPreviewProspectId(e.target.value)}
+                    className="h-9 flex-1 rounded-lg border border-border bg-card px-2.5 text-sm text-foreground"
+                  >
+                    {store.prospects.length === 0 ? <option value="">Sample recipient</option> : null}
+                    {store.prospects.map((x) => (
+                      <option key={x.id} value={x.id}>
+                        {x.contactName || x.company} — {x.email}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <div className="rounded-lg border border-border">
+                  <div className="border-b border-border px-4 py-3 text-sm">
+                    <p className="text-muted-foreground">
+                      To: <span className="text-foreground">{p?.email ?? "sample@example.com"}</span>
+                    </p>
+                    <p className="mt-1 font-medium text-foreground">{fillTemplate(t.subject, vars)}</p>
+                  </div>
+                  <div className="max-h-80 overflow-y-auto whitespace-pre-wrap px-4 py-4 text-sm text-foreground">
+                    {fillTemplate(t.body, vars)}
+                  </div>
+                </div>
+              </>
+            );
+          })()}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPreviewId(null)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
