@@ -187,7 +187,7 @@ export const sendCampaignBatch = createServerFn({ method: "POST" })
         init: {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ raw: rawEmail({ to, from, subject, body }) }),
+          body: JSON.stringify({ raw: rawEmail({ to, from, subject, body, html }) }),
         },
       });
       if (await appUserReconnectRequired(res)) {
