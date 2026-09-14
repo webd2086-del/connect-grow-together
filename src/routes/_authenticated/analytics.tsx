@@ -190,6 +190,51 @@ function AnalyticsPage() {
         </SectionCard>
       </div>
 
+      <SectionCard
+        title="Campaign performance"
+        description="Opens are counted when the recipient loads the email; replies come from your mailbox."
+        bodyClassName="p-0"
+      >
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border text-left text-xs text-muted-foreground">
+                <th className="px-5 py-3 font-medium">Campaign</th>
+                <th className="px-3 py-3 font-medium">Recipients</th>
+                <th className="px-3 py-3 font-medium">Sent</th>
+                <th className="px-3 py-3 font-medium">Opened</th>
+                <th className="px-3 py-3 font-medium">Open rate</th>
+                <th className="px-3 py-3 font-medium">Total opens</th>
+                <th className="px-3 py-3 font-medium">Replies</th>
+                <th className="px-5 py-3 font-medium">Reply rate</th>
+              </tr>
+            </thead>
+            <tbody>
+              {campaignPerformance.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="px-5 py-6 text-center text-muted-foreground">
+                    No campaigns yet.
+                  </td>
+                </tr>
+              ) : (
+                campaignPerformance.map((c) => (
+                  <tr key={c.id} className="border-b border-border/70 last:border-0">
+                    <td className="px-5 py-3 font-medium text-foreground">{c.name}</td>
+                    <td className="num px-3 py-3 text-muted-foreground">{c.recipients}</td>
+                    <td className="num px-3 py-3 text-muted-foreground">{c.sent}</td>
+                    <td className="num px-3 py-3 text-muted-foreground">{c.opened}</td>
+                    <td className="num px-3 py-3 font-medium text-foreground">{c.openRate}%</td>
+                    <td className="num px-3 py-3 text-muted-foreground">{c.totalOpens}</td>
+                    <td className="num px-3 py-3 text-muted-foreground">{c.replied}</td>
+                    <td className="num px-5 py-3 font-medium text-foreground">{c.replyRate}%</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </SectionCard>
+
       <SectionCard title="Category performance" description="Which service lines convert best" bodyClassName="p-0">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
