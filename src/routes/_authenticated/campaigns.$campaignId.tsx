@@ -98,8 +98,27 @@ function CampaignDetail() {
               {account ? ` · ${account.label} (${account.address})` : " · no sending account linked"} · created{" "}
               {formatDate(campaign.createdAt)}
             </p>
-            <div className="mt-3">
+            <div className="mt-3 flex flex-wrap items-center gap-3">
               <CategoryChip category={lookups.category(campaign.categoryId)} />
+              <label className="flex items-center gap-2 text-sm text-muted-foreground">
+                Send from
+                <select
+                  value={campaign.emailAccountId ?? ""}
+                  onChange={(e) => {
+                    store.updateCampaign(campaign.id, { emailAccountId: e.target.value });
+                    const next = store.accounts.find((a) => a.id === e.target.value);
+                    toast.success(next ? `Sending from ${next.address}` : "Sending address cleared");
+                  }}
+                  className="h-9 rounded-lg border border-border bg-card px-2.5 text-sm text-foreground"
+                >
+                  <option value="">Choose an address…</option>
+                  {store.accounts.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.label} ({a.address})
+                    </option>
+                  ))}
+                </select>
+              </label>
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
