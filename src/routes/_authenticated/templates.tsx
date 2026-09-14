@@ -1,8 +1,9 @@
 import * as React from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { Copy, Plus, Trash2 } from "lucide-react";
+import { Copy, Eye, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useOutreach } from "@/lib/outreach/store";
+import { buildVars, fillTemplate } from "@/lib/outreach/merge";
 import { CategoryChip, PageHeader, SectionCard } from "@/components/app/primitives";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
