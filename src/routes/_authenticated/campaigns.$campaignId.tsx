@@ -34,10 +34,55 @@ function CampaignDetail() {
   const store = useOutreach();
   const lookups = useLookups();
   const sendBatchFn = useServerFn(sendCampaignBatch);
+  const testSendFn = useServerFn(sendTestEmail);
+  const syncRepliesFn = useServerFn(syncCampaignReplies);
   const [sending, setSending] = React.useState(false);
+  const [testing, setTesting] = React.useState(false);
+  const [syncing, setSyncing] = React.useState(false);
+  const [previewOpen, setPreviewOpen] = React.useState(false);
+  const [previewId, setPreviewId] = React.useState<string>("");
   const [picking, setPicking] = React.useState(false);
   const [picked, setPicked] = React.useState<string[]>([]);
   const campaign = store.campaigns.find((c) => c.id === campaignId);
+
+  const sendTest = async () => {
+    if (!campaign) return;
+    setTesting(true);
+    try {
+      const res = await testSendFn({
+        data: { campaignId: campaign.id, ...(previewId ? { prospectId: previewId } : {}) },
+      });
+      if (res.needsConnection) {
+        toast.error("Connect an email account first", { description: "Add Gmail or SMTP on the Email Accounts page." });
+      } else if (res.reconnectRequired) {
+        toast.error("Gmail access expired", { description: "Reconnect Gmail on the Email Accounts page." });
+      } else if (res.ok) {
+        toast.success(`Test sent to ${res.to}`, { description: "Check your inbox for the [TEST] email." });
+      } else {
+        toast.error("Test send failed", { description: res.error ?? "Please try again." });
+      }
+    } catch (err) {
+      toast.error("Test send failed", { description: err instanceof Error ? err.message : "Please try again." });
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  const syncReplies = async () => {
+    if (!campaign) return;
+    setSyncing(true);
+    try {
+      const res = await syncRepliesFn({ data: { campaignId: campaign.id } });
+      if (res.reconnectRequired) toast.error("Gmail access expired", { description: "Reconnect Gmail to check replies." });
+      else if (res.unsupported) toast.message("Reply checking needs Gmail", { description: "Connect Gmail to detect replies automatically." });
+      else toast.success(`${res.replies} new repl${res.replies === 1 ? "y" : "ies"} found`, { description: `${res.checked} sent emails checked.` });
+      await store.refresh();
+    } catch (err) {
+      toast.error("Could not check replies", { description: err instanceof Error ? err.message : "Please try again." });
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const send = async () => {
     if (!campaign) return;
