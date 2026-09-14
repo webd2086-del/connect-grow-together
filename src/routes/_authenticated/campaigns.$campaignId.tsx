@@ -1,13 +1,21 @@
 import * as React from "react";
 import { createFileRoute, Link, useParams } from "@tanstack/react-router";
-import { ArrowLeft, Ban, Pause, Play, Send, UserPlus } from "lucide-react";
+import { ArrowLeft, Ban, Eye, MailCheck, Pause, Play, RefreshCw, Send, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { campaignStats, useLookups, useOutreach } from "@/lib/outreach/store";
 import { formatDate, formatShort, pct } from "@/lib/outreach/format";
+import { buildVars, fillTemplate } from "@/lib/outreach/merge";
 import { CategoryChip, EmptyState, Pill, ProgressBar, SectionCard, StatusBadge } from "@/components/app/primitives";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useServerFn } from "@tanstack/react-start";
-import { sendCampaignBatch } from "@/lib/campaign-send.functions";
+import { sendCampaignBatch, sendTestEmail, syncCampaignReplies } from "@/lib/campaign-send.functions";
 
 export const Route = createFileRoute("/_authenticated/campaigns/$campaignId")({
   head: () => ({
