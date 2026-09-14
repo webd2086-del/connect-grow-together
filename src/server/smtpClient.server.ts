@@ -16,6 +16,7 @@ export interface SmtpMessage {
   to: string;
   subject: string;
   text: string;
+  html?: string | undefined;
   replyTo?: string | undefined;
 }
 
