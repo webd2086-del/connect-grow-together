@@ -25,6 +25,7 @@ import { Route as AuthenticatedCampaignsNewRouteImport } from './routes/_authent
 import { Route as AuthenticatedProspectsIndexRouteImport } from './routes/_authenticated/prospects.index'
 import { Route as AuthenticatedProspectsProspectIdRouteImport } from './routes/_authenticated/prospects.$prospectId'
 import { Route as OauthGoogleMailReturnRouteImport } from './routes/oauth/google-mail/return'
+import { Route as ApiPublicOpenRecipientIdRouteImport } from './routes/api/public/open.$recipientId'
 
 const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
   id: '/_authenticated',
@@ -110,6 +111,12 @@ const OauthGoogleMailReturnRoute = OauthGoogleMailReturnRouteImport.update({
   path: '/oauth/google-mail/return',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicOpenRecipientIdRoute =
+  ApiPublicOpenRecipientIdRouteImport.update({
+    id: '/api/public/open/$recipientId',
+    path: '/api/public/open/$recipientId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
@@ -127,6 +134,7 @@ export interface FileRoutesByFullPath {
   '/oauth/google-mail/return': typeof OauthGoogleMailReturnRoute
   '/campaigns/': typeof AuthenticatedCampaignsIndexRoute
   '/prospects/': typeof AuthenticatedProspectsIndexRoute
+  '/api/public/open/$recipientId': typeof ApiPublicOpenRecipientIdRoute
 }
 export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
@@ -144,6 +152,7 @@ export interface FileRoutesByTo {
   '/oauth/google-mail/return': typeof OauthGoogleMailReturnRoute
   '/campaigns': typeof AuthenticatedCampaignsIndexRoute
   '/prospects': typeof AuthenticatedProspectsIndexRoute
+  '/api/public/open/$recipientId': typeof ApiPublicOpenRecipientIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -163,6 +172,7 @@ export interface FileRoutesById {
   '/oauth/google-mail/return': typeof OauthGoogleMailReturnRoute
   '/_authenticated/campaigns/': typeof AuthenticatedCampaignsIndexRoute
   '/_authenticated/prospects/': typeof AuthenticatedProspectsIndexRoute
+  '/api/public/open/$recipientId': typeof ApiPublicOpenRecipientIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -182,6 +192,7 @@ export interface FileRouteTypes {
     | '/oauth/google-mail/return'
     | '/campaigns/'
     | '/prospects/'
+    | '/api/public/open/$recipientId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/auth'
@@ -199,6 +210,7 @@ export interface FileRouteTypes {
     | '/oauth/google-mail/return'
     | '/campaigns'
     | '/prospects'
+    | '/api/public/open/$recipientId'
   id:
     | '__root__'
     | '/_authenticated'
@@ -217,12 +229,14 @@ export interface FileRouteTypes {
     | '/oauth/google-mail/return'
     | '/_authenticated/campaigns/'
     | '/_authenticated/prospects/'
+    | '/api/public/open/$recipientId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
   OauthGoogleMailReturnRoute: typeof OauthGoogleMailReturnRoute
+  ApiPublicOpenRecipientIdRoute: typeof ApiPublicOpenRecipientIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -339,6 +353,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OauthGoogleMailReturnRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/open/$recipientId': {
+      id: '/api/public/open/$recipientId'
+      path: '/api/public/open/$recipientId'
+      fullPath: '/api/public/open/$recipientId'
+      preLoaderRoute: typeof ApiPublicOpenRecipientIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -381,6 +402,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
   OauthGoogleMailReturnRoute: OauthGoogleMailReturnRoute,
+  ApiPublicOpenRecipientIdRoute: ApiPublicOpenRecipientIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
