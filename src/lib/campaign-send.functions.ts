@@ -169,10 +169,10 @@ export const sendCampaignBatch = createServerFn({ method: "POST" })
       }
     }
 
-    const sendOne = async (to: string, subject: string, body: string): Promise<SendOutcome> => {
+    const sendOne = async (to: string, subject: string, body: string, html?: string): Promise<SendOutcome> => {
       if (smtpSession) {
         try {
-          await smtpSession.send({ from: fromAddress, fromName: senderName || undefined, to, subject, text: body });
+          await smtpSession.send({ from: fromAddress, fromName: senderName || undefined, to, subject, text: body, html });
           return { ok: true };
         } catch (err) {
           return { ok: false, error: err instanceof Error ? err.message : "Send failed" };
