@@ -31,13 +31,13 @@ function NewCampaign() {
   const navigate = useNavigate();
   const [step, setStep] = React.useState(0);
 
-  const firstCategory = store.categories[0]!;
+  const firstCategory = store.categories[0];
   const [form, setForm] = React.useState({
     name: "",
-    categoryId: firstCategory.id,
-    purpose: firstCategory.purposes[0] ?? "",
+    categoryId: firstCategory?.id ?? "",
+    purpose: firstCategory?.purposes[0] ?? "",
     description: "",
-    emailAccountId: firstCategory.emailAccountId ?? store.accounts[0]!.id,
+    emailAccountId: firstCategory?.emailAccountId ?? store.accounts[0]?.id ?? "",
     subject: "Introducing our {{company_name}} programme",
     body: `Hello {{first_name}},
 
