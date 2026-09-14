@@ -272,18 +272,36 @@ export async function openSmtpSession(cfg: SmtpConfig): Promise<SmtpSession> {
       await cmd(active, `RCPT TO:<${msg.to}>`, [250, 251], `Recipient ${msg.to}`);
       await cmd(active, "DATA", [354], "DATA");
 
+      const boundary = `oos_${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`;
       const headers = [
         `From: ${msg.fromName ? `${headerValue(msg.fromName)} <${msg.from}>` : msg.from}`,
         `To: ${msg.to}`,
         `Subject: ${headerValue(msg.subject)}`,
         `Date: ${new Date().toUTCString()}`,
         "MIME-Version: 1.0",
-        'Content-Type: text/plain; charset="UTF-8"',
-        "Content-Transfer-Encoding: 8bit",
+        msg.html
+          ? `Content-Type: multipart/alternative; boundary="${boundary}"`
+          : 'Content-Type: text/plain; charset="UTF-8"',
+        ...(msg.html ? [] : ["Content-Transfer-Encoding: 8bit"]),
       ];
       if (msg.replyTo) headers.push(`Reply-To: ${msg.replyTo}`);
 
-      const body = msg.text.replace(/\r?\n/g, "\r\n").replace(/^\./gm, "..");
+      const raw = msg.html
+        ? [
+            `--${boundary}`,
+            'Content-Type: text/plain; charset="UTF-8"',
+            "Content-Transfer-Encoding: 8bit",
+            "",
+            msg.text,
+            `--${boundary}`,
+            'Content-Type: text/html; charset="UTF-8"',
+            "Content-Transfer-Encoding: 8bit",
+            "",
+            msg.html,
+            `--${boundary}--`,
+          ].join("\n")
+        : msg.text;
+      const body = raw.replace(/\r?\n/g, "\r\n").replace(/^\./gm, "..");
       await connWrite(active, `${headers.join("\r\n")}\r\n\r\n${body}\r\n.\r\n`);
       const reply = await readReply(active);
       if (Math.floor(reply.code) !== 250) throw new Error(`Message rejected: ${reply.text}`);
