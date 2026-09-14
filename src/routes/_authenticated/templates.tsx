@@ -33,6 +33,8 @@ export const Route = createFileRoute("/_authenticated/templates")({
 function TemplatesPage() {
   const store = useOutreach();
   const [open, setOpen] = React.useState(false);
+  const [previewId, setPreviewId] = React.useState<string | null>(null);
+  const [previewProspectId, setPreviewProspectId] = React.useState<string>("");
   const [form, setForm] = React.useState({
     name: "",
     categoryId: store.categories[0]?.id ?? "",
