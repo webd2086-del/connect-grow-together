@@ -154,7 +154,7 @@ export const sendCampaignBatch = createServerFn({ method: "POST" })
 
     // ---- Transport ---------------------------------------------------------
     let reconnect = false;
-    let smtpSession: { send: (m: { from: string; fromName?: string | undefined; to: string; subject: string; text: string }) => Promise<void>; quit: () => Promise<void> } | null = null;
+    let smtpSession: { send: (m: { from: string; fromName?: string | undefined; to: string; subject: string; text: string; html?: string | undefined }) => Promise<void>; quit: () => Promise<void> } | null = null;
 
     if (smtpConfig) {
       const { openSmtpSession } = await import("@/server/smtpClient.server");
