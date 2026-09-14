@@ -218,27 +218,27 @@ export const sendCampaignBatch = createServerFn({ method: "POST" })
         continue;
       }
 
-      const first = (prospect.contact_name || "").trim().split(/\s+/)[0] ?? "";
-      const location = [prospect.city, prospect.country].filter(Boolean).join(", ");
-      const vars: Record<string, string> = {
-        first_name: first || prospect.company,
-        contact_name: prospect.contact_name || prospect.company,
-        full_name: prospect.contact_name || prospect.company,
-        company: prospect.company,
-        company_name: prospect.company,
-        school_name: prospect.company,
-        brand: prospect.company,
-        website: prospect.website ?? "",
-        industry: prospect.industry ?? "",
-        city: prospect.city ?? "",
-        country: prospect.country ?? "",
-        location: location || (prospect.country ?? ""),
-        sender_name: senderName,
-      };
+      const vars = buildVars(
+        {
+          company: prospect.company,
+          contactName: prospect.contact_name,
+          email: prospect.email,
+          website: prospect.website,
+          industry: prospect.industry,
+          city: prospect.city,
+          country: prospect.country,
+        },
+        senderName,
+      );
       const subject = fill(recipient.subject || campaign.subject, vars);
       const body = fill(recipient.body || campaign.body, vars);
 
-      const outcome = await sendOne(prospect.email, subject, body);
+      const outcome = await sendOne(
+        prospect.email,
+        subject,
+        body,
+        htmlBody(body, trackingPixelUrl(recipient.id)),
+      );
 
       if (!outcome.ok && reconnect) {
         return { sent, failed: errors.length, remaining: 0, errors, reconnectRequired: true };
