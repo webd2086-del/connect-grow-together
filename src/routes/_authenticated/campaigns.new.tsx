@@ -96,7 +96,13 @@ ${store.user.name}`,
   );
 
   const duplicates = selected.filter((id) => duplicateFor(id) && !overrides.includes(id));
-  const previewProspect = store.prospects.find((p) => p.id === selected[0]) ?? store.prospects[0]!;
+  const previewProspect = store.prospects.find((p) => p.id === selected[0]) ??
+    store.prospects[0] ?? {
+      contactName: "Alex Doe",
+      company: "Sample Company",
+      city: "Nairobi",
+      country: "Kenya",
+    };
   const vars = {
     first_name: firstName(previewProspect.contactName),
     contact_name: previewProspect.contactName,
