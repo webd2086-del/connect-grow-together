@@ -57,14 +57,26 @@ ${store.user.name}`,
   const [overrides, setOverrides] = React.useState<string[]>([]);
   const [search, setSearch] = React.useState("");
 
-  const category = store.categories.find((c) => c.id === form.categoryId)!;
+  const category = store.categories.find((c) => c.id === form.categoryId) ?? store.categories[0];
 
   // Suggest sender based on the campaign category, still user-changeable.
   React.useEffect(() => {
+    if (!category) return;
     const suggested = category.emailAccountId ?? store.accounts.find((a) => a.categoryIds.includes(category.id))?.id;
     if (suggested) setForm((f) => ({ ...f, emailAccountId: suggested, purpose: category.purposes[0] ?? f.purpose }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.categoryId]);
+
+  if (!category) {
+    return (
+      <div className="mx-auto max-w-md py-20 text-center">
+        <h1 className="text-lg font-semibold text-foreground">Setting up your workspace</h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Your outreach categories are still being created. Refresh in a moment to start a campaign.
+        </p>
+      </div>
+    );
+  }
 
   const candidates = store.prospects.filter((p) => {
     const term = search.trim().toLowerCase();
