@@ -201,7 +201,13 @@ function CampaignDetail() {
             <Button variant="outline" onClick={() => { setPicked([]); setPicking((v) => !v); }}>
               <UserPlus className="size-4" /> Add recipients
             </Button>
-            <Button variant="outline" onClick={() => setPreviewOpen(true)}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setPreviewId((prev) => prev || previewCandidates[0]?.id || store.prospects[0]?.id || "");
+                setPreviewOpen(true);
+              }}
+            >
               <Eye className="size-4" /> Preview as recipient
             </Button>
             <Button variant="outline" disabled={testing} onClick={() => void sendTest()}>
