@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { appUserReconnectRequired, callAsAppUser } from "@/integrations/lovable/appUserConnector";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { getConnectionKeyForUser } from "@/server/appUserConnections.server";
+import { buildVars, fillTemplate } from "@/lib/outreach/merge";
 
 const GATEWAY_BASE_URL = "https://connector-gateway.lovable.dev";
 const GMAIL_CONNECTOR_ID = "google_mail";
