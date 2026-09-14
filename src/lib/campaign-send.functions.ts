@@ -25,7 +25,15 @@ function rawEmail(opts: { to: string; from: string; subject: string; body: strin
 }
 
 function fill(text: string, vars: Record<string, string>) {
-  return text.replace(/\{\{\s*([a-z_]+)\s*\}\}/gi, (m, key: string) => vars[key.toLowerCase()] ?? m);
+  return (
+    text
+      // unknown or empty placeholders disappear instead of leaking "{{...}}"
+      .replace(/\{\{\s*([a-z_0-9]+)\s*\}\}/gi, (_m, key: string) => vars[key.toLowerCase()] ?? "")
+      // tidy up the gaps an empty value leaves behind ("in ." / "in ,")
+      .replace(/[ \t]+([.,!?])/g, "$1")
+      .replace(/\b(in|at|from|for|to)\s+([.,!?])/gi, "$2")
+      .replace(/[ \t]{2,}/g, " ")
+  );
 }
 
 export interface SendBatchResult {
@@ -189,12 +197,20 @@ export const sendCampaignBatch = createServerFn({ method: "POST" })
       }
 
       const first = (prospect.contact_name || "").trim().split(/\s+/)[0] ?? "";
+      const location = [prospect.city, prospect.country].filter(Boolean).join(", ");
       const vars: Record<string, string> = {
         first_name: first || prospect.company,
         contact_name: prospect.contact_name || prospect.company,
+        full_name: prospect.contact_name || prospect.company,
         company: prospect.company,
+        company_name: prospect.company,
+        school_name: prospect.company,
+        brand: prospect.company,
+        website: prospect.website ?? "",
+        industry: prospect.industry ?? "",
         city: prospect.city ?? "",
         country: prospect.country ?? "",
+        location: location || (prospect.country ?? ""),
         sender_name: senderName,
       };
       const subject = fill(recipient.subject || campaign.subject, vars);
