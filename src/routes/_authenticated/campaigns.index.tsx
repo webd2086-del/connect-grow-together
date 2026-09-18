@@ -1,6 +1,6 @@
 import * as React from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Pause, Play, Plus, Send } from "lucide-react";
+import { Pause, Pencil, Play, Plus, Send } from "lucide-react";
 import { toast } from "sonner";
 import { campaignStats, useLookups, useOutreach } from "@/lib/outreach/store";
 import { formatDate, pct } from "@/lib/outreach/format";
