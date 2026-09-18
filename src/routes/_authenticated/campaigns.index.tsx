@@ -142,6 +142,13 @@ function CampaignsPage() {
                     <Send className="size-3.5" /> Send next batch
                   </Button>
                 ) : null}
+                {c.status === "draft" || c.status === "scheduled" ? (
+                  <Button size="sm" variant="outline" asChild>
+                    <Link to="/campaigns/new" search={{ edit: c.id }}>
+                      <Pencil className="size-3.5" /> Edit
+                    </Link>
+                  </Button>
+                ) : null}
                 <Button size="sm" variant="ghost" asChild className="ml-auto">
                   <Link to="/campaigns/$campaignId" params={{ campaignId: c.id }}>
                     Open
