@@ -198,6 +198,13 @@ function CampaignDetail() {
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
+            {campaign.status === "draft" || campaign.status === "scheduled" ? (
+              <Button asChild>
+                <Link to="/campaigns/new" search={{ edit: campaign.id }}>
+                  <Pencil className="size-4" /> Edit draft
+                </Link>
+              </Button>
+            ) : null}
             <Button variant="outline" onClick={() => { setPicked([]); setPicking((v) => !v); }}>
               <UserPlus className="size-4" /> Add recipients
             </Button>
