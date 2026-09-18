@@ -13,6 +13,9 @@ import { cn } from "@/lib/utils";
 import type { CampaignRecipient } from "@/lib/outreach/types";
 
 export const Route = createFileRoute("/_authenticated/campaigns/new")({
+  validateSearch: (search: Record<string, unknown>) => ({
+    edit: typeof search['edit'] === "string" ? (search['edit'] as string) : undefined,
+  }),
   head: () => ({
     meta: [
       { title: "New campaign — OutreachOS" },
