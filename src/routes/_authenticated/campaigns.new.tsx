@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import type { CampaignRecipient } from "@/lib/outreach/types";
+import type { CampaignRecipient, CampaignStatus } from "@/lib/outreach/types";
 
 export const Route = createFileRoute("/_authenticated/campaigns/new")({
   validateSearch: (search: Record<string, unknown>): { edit?: string } =>
