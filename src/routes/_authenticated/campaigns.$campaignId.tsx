@@ -1,6 +1,6 @@
 import * as React from "react";
 import { createFileRoute, Link, useParams } from "@tanstack/react-router";
-import { ArrowLeft, Ban, Eye, MailCheck, Pause, Play, RefreshCw, Send, UserPlus } from "lucide-react";
+import { ArrowLeft, Ban, Eye, MailCheck, Pause, Pencil, Play, RefreshCw, Send, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { campaignStats, useLookups, useOutreach } from "@/lib/outreach/store";
 import { formatDate, formatShort, pct } from "@/lib/outreach/format";
