@@ -59,11 +59,45 @@ ${store.user.name}`,
   const [overrides, setOverrides] = React.useState<string[]>([]);
   const [search, setSearch] = React.useState("");
 
+  const { edit: editId } = Route.useSearch();
+  const existing = editId ? store.campaigns.find((c) => c.id === editId) : undefined;
+  const isEditing = Boolean(existing);
+  const hydrated = React.useRef(false);
+  const skipSuggest = React.useRef(false);
+
+  // Load an existing draft into the same builder UI so it can be edited end to end.
+  React.useEffect(() => {
+    if (!existing || hydrated.current) return;
+    hydrated.current = true;
+    skipSuggest.current = true;
+    const [body, signature] = existing.body.split("\n\n—\n");
+    setForm((f) => ({
+      ...f,
+      name: existing.name,
+      categoryId: existing.categoryId,
+      purpose: existing.purpose,
+      description: existing.description ?? "",
+      emailAccountId: existing.emailAccountId ?? f.emailAccountId,
+      subject: existing.subject,
+      body: body ?? existing.body,
+      signature: signature ?? f.signature,
+      batchSize: existing.batchSize,
+      intervalMinutes: existing.intervalMinutes,
+      scheduleMode: existing.scheduledAt ? "later" : "now",
+      scheduledAt: existing.scheduledAt ? existing.scheduledAt.slice(0, 16) : "",
+    }));
+    setSelected(store.recipients.filter((r) => r.campaignId === existing.id).map((r) => r.prospectId));
+  }, [existing, store.recipients]);
+
   const category = store.categories.find((c) => c.id === form.categoryId) ?? store.categories[0];
 
   // Suggest sender based on the campaign category, still user-changeable.
   React.useEffect(() => {
     if (!category) return;
+    if (skipSuggest.current) {
+      skipSuggest.current = false;
+      return;
+    }
     const suggested = category.emailAccountId ?? store.accounts.find((a) => a.categoryIds.includes(category.id))?.id;
     if (suggested) setForm((f) => ({ ...f, emailAccountId: suggested, purpose: category.purposes[0] ?? f.purpose }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
