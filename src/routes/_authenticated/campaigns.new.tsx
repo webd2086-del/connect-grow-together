@@ -156,37 +156,44 @@ ${store.user.name}`,
 
   const launch = (sendNow: boolean) => {
     const ids = selected.filter((id) => !duplicates.includes(id));
-    const campaign = store.createCampaign(
-      {
-        name: form.name,
-        categoryId: form.categoryId,
-        purpose: form.purpose,
-        description: form.description,
-        emailAccountId: form.emailAccountId,
-        subject: form.subject,
-        body: `${form.body}\n\n—\n${form.signature}`,
-        status: sendNow ? "sending" : form.scheduleMode === "later" ? "scheduled" : "draft",
-        batchSize: form.batchSize,
-        intervalMinutes: form.intervalMinutes,
-        scheduledAt: form.scheduleMode === "later" ? form.scheduledAt || null : null,
-      },
-      ids,
-    );
+    const fields = {
+      name: form.name,
+      categoryId: form.categoryId,
+      purpose: form.purpose,
+      description: form.description,
+      emailAccountId: form.emailAccountId,
+      subject: form.subject,
+      body: `${form.body}\n\n—\n${form.signature}`,
+      status: (sendNow ? "sending" : form.scheduleMode === "later" ? "scheduled" : "draft") as const,
+      batchSize: form.batchSize,
+      intervalMinutes: form.intervalMinutes,
+      scheduledAt: form.scheduleMode === "later" ? form.scheduledAt || null : null,
+    };
+    let campaignId: string;
+    if (existing) {
+      store.updateCampaign(existing.id, fields);
+      const already = new Set(store.recipients.filter((r) => r.campaignId === existing.id).map((r) => r.prospectId));
+      const fresh = ids.filter((id) => !already.has(id));
+      if (fresh.length) store.addRecipients(existing.id, fresh);
+      campaignId = existing.id;
+    } else {
+      campaignId = store.createCampaign(fields, ids).id;
+    }
     if (sendNow) {
-      const n = store.sendBatch(campaign.id, form.batchSize);
+      const n = store.sendBatch(campaignId, form.batchSize);
       toast.success(`Campaign launched — ${n} emails sent`, {
         description: `Remaining recipients go out in batches of ${form.batchSize} every ${form.intervalMinutes} minutes.`,
       });
     } else {
-      toast.success("Campaign saved", { description: `${ids.length} recipients queued.` });
+      toast.success(existing ? "Draft updated" : "Campaign saved", { description: `${ids.length} recipients queued.` });
     }
-    void navigate({ to: "/campaigns/$campaignId", params: { campaignId: campaign.id } });
+    void navigate({ to: "/campaigns/$campaignId", params: { campaignId } });
   };
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title="New campaign"
+        title={isEditing ? `Edit draft — ${existing?.name ?? ""}` : "New campaign"}
         description="One purpose per campaign keeps duplicate outreach impossible by accident."
         actions={
           <Button variant="outline" asChild>
