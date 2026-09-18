@@ -10,9 +10,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import type { CampaignRecipient } from "@/lib/outreach/types";
+import type { CampaignRecipient, CampaignStatus } from "@/lib/outreach/types";
 
 export const Route = createFileRoute("/_authenticated/campaigns/new")({
+  validateSearch: (search: Record<string, unknown>): { edit?: string } =>
+    typeof search['edit'] === "string" ? { edit: search['edit'] as string } : {},
   head: () => ({
     meta: [
       { title: "New campaign — OutreachOS" },
@@ -57,11 +59,45 @@ ${store.user.name}`,
   const [overrides, setOverrides] = React.useState<string[]>([]);
   const [search, setSearch] = React.useState("");
 
+  const { edit: editId } = Route.useSearch();
+  const existing = editId ? store.campaigns.find((c) => c.id === editId) : undefined;
+  const isEditing = Boolean(existing);
+  const hydrated = React.useRef(false);
+  const skipSuggest = React.useRef(false);
+
+  // Load an existing draft into the same builder UI so it can be edited end to end.
+  React.useEffect(() => {
+    if (!existing || hydrated.current) return;
+    hydrated.current = true;
+    skipSuggest.current = true;
+    const [body, signature] = existing.body.split("\n\n—\n");
+    setForm((f) => ({
+      ...f,
+      name: existing.name,
+      categoryId: existing.categoryId,
+      purpose: existing.purpose,
+      description: existing.description ?? "",
+      emailAccountId: existing.emailAccountId ?? f.emailAccountId,
+      subject: existing.subject,
+      body: body ?? existing.body,
+      signature: signature ?? f.signature,
+      batchSize: existing.batchSize,
+      intervalMinutes: existing.intervalMinutes,
+      scheduleMode: existing.scheduledAt ? "later" : "now",
+      scheduledAt: existing.scheduledAt ? existing.scheduledAt.slice(0, 16) : "",
+    }));
+    setSelected(store.recipients.filter((r) => r.campaignId === existing.id).map((r) => r.prospectId));
+  }, [existing, store.recipients]);
+
   const category = store.categories.find((c) => c.id === form.categoryId) ?? store.categories[0];
 
   // Suggest sender based on the campaign category, still user-changeable.
   React.useEffect(() => {
     if (!category) return;
+    if (skipSuggest.current) {
+      skipSuggest.current = false;
+      return;
+    }
     const suggested = category.emailAccountId ?? store.accounts.find((a) => a.categoryIds.includes(category.id))?.id;
     if (suggested) setForm((f) => ({ ...f, emailAccountId: suggested, purpose: category.purposes[0] ?? f.purpose }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -120,37 +156,44 @@ ${store.user.name}`,
 
   const launch = (sendNow: boolean) => {
     const ids = selected.filter((id) => !duplicates.includes(id));
-    const campaign = store.createCampaign(
-      {
-        name: form.name,
-        categoryId: form.categoryId,
-        purpose: form.purpose,
-        description: form.description,
-        emailAccountId: form.emailAccountId,
-        subject: form.subject,
-        body: `${form.body}\n\n—\n${form.signature}`,
-        status: sendNow ? "sending" : form.scheduleMode === "later" ? "scheduled" : "draft",
-        batchSize: form.batchSize,
-        intervalMinutes: form.intervalMinutes,
-        scheduledAt: form.scheduleMode === "later" ? form.scheduledAt || null : null,
-      },
-      ids,
-    );
+    const fields = {
+      name: form.name,
+      categoryId: form.categoryId,
+      purpose: form.purpose,
+      description: form.description,
+      emailAccountId: form.emailAccountId,
+      subject: form.subject,
+      body: `${form.body}\n\n—\n${form.signature}`,
+      status: (sendNow ? "sending" : form.scheduleMode === "later" ? "scheduled" : "draft") as CampaignStatus,
+      batchSize: form.batchSize,
+      intervalMinutes: form.intervalMinutes,
+      scheduledAt: form.scheduleMode === "later" ? form.scheduledAt || null : null,
+    };
+    let campaignId: string;
+    if (existing) {
+      store.updateCampaign(existing.id, fields);
+      const already = new Set(store.recipients.filter((r) => r.campaignId === existing.id).map((r) => r.prospectId));
+      const fresh = ids.filter((id) => !already.has(id));
+      if (fresh.length) store.addRecipients(existing.id, fresh);
+      campaignId = existing.id;
+    } else {
+      campaignId = store.createCampaign(fields, ids).id;
+    }
     if (sendNow) {
-      const n = store.sendBatch(campaign.id, form.batchSize);
+      const n = store.sendBatch(campaignId, form.batchSize);
       toast.success(`Campaign launched — ${n} emails sent`, {
         description: `Remaining recipients go out in batches of ${form.batchSize} every ${form.intervalMinutes} minutes.`,
       });
     } else {
-      toast.success("Campaign saved", { description: `${ids.length} recipients queued.` });
+      toast.success(existing ? "Draft updated" : "Campaign saved", { description: `${ids.length} recipients queued.` });
     }
-    void navigate({ to: "/campaigns/$campaignId", params: { campaignId: campaign.id } });
+    void navigate({ to: "/campaigns/$campaignId", params: { campaignId } });
   };
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title="New campaign"
+        title={isEditing ? `Edit draft — ${existing?.name ?? ""}` : "New campaign"}
         description="One purpose per campaign keeps duplicate outreach impossible by accident."
         actions={
           <Button variant="outline" asChild>
