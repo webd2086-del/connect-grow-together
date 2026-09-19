@@ -560,6 +560,11 @@ export const sendTestEmail = createServerFn({ method: "POST" })
     const html = htmlBody(body);
     const from = senderName && fromAddress ? `${header(senderName)} <${fromAddress}>` : fromAddress;
 
+    if (useResend) {
+      const outcome = await sendViaResend({ to, from, subject, text: body, html, replyTo: fromAddress });
+      return outcome.ok ? { ok: true, to } : { ok: false, error: outcome.error };
+    }
+
     if (smtpConfig) {
       const { openSmtpSession } = await import("@/server/smtpClient.server");
       try {
