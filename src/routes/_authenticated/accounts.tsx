@@ -8,6 +8,13 @@ import { relative } from "@/lib/outreach/format";
 import { connectGmail } from "@/lib/outreach/gmail-connect";
 import { getGmailStatus, disconnectGmail } from "@/lib/gmail.functions";
 import { connectSmtpAccount, disconnectSmtpAccount } from "@/lib/smtp.functions";
+import {
+  addResendDomain,
+  connectResendAddress,
+  listResendDomains,
+  verifyResendDomain,
+  type ResendDomain,
+} from "@/lib/resend.functions";
 import { CategoryChip, PageHeader, Pill, ProgressBar, SectionCard } from "@/components/app/primitives";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,7 +32,12 @@ export const Route = createFileRoute("/_authenticated/accounts")({
   component: AccountsPage,
 });
 
-const PROVIDER_LABEL = { google: "Gmail / Google Workspace", microsoft: "Microsoft / Outlook", smtp: "SMTP" } as const;
+const PROVIDER_LABEL = {
+  google: "Gmail / Google Workspace",
+  microsoft: "Microsoft / Outlook",
+  smtp: "SMTP",
+  resend: "Resend (recommended for delivery)",
+} as const;
 
 function AccountsPage() {
   const store = useOutreach();
