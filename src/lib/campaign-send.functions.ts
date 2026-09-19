@@ -58,6 +58,40 @@ function appBaseUrl() {
 
 const trackingPixelUrl = (recipientId: string) => `${appBaseUrl()}/api/public/open/${recipientId}.gif`;
 
+/** Sends one message through the Resend API (better deliverability than a raw mailbox). */
+async function sendViaResend(msg: {
+  to: string;
+  from: string;
+  subject: string;
+  text: string;
+  html?: string | undefined;
+  replyTo?: string | undefined;
+}): Promise<{ ok: true; messageId?: string | null; threadId?: string | null } | { ok: false; error: string }> {
+  const { resendFetch } = await import("@/lib/resend.functions");
+  try {
+    const res = await resendFetch("/emails", {
+      method: "POST",
+      body: JSON.stringify({
+        from: msg.from,
+        to: [msg.to],
+        subject: msg.subject,
+        text: msg.text,
+        ...(msg.html ? { html: msg.html } : {}),
+        ...(msg.replyTo ? { reply_to: msg.replyTo } : {}),
+      }),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      console.error(`Resend send failed [${res.status}]: ${text}`);
+      return { ok: false, error: `${res.status} ${text.slice(0, 200)}` };
+    }
+    const out = (await res.json()) as { id?: string };
+    return { ok: true, messageId: out.id ?? null, threadId: null };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "Resend send failed" };
+  }
+}
+
 export interface SendBatchResult {
   sent: number;
   failed: number;
@@ -173,6 +207,9 @@ export const sendCampaignBatch = createServerFn({ method: "POST" })
     }
 
     const sendOne = async (to: string, subject: string, body: string, html?: string): Promise<SendOutcome> => {
+      if (useResend) {
+        return sendViaResend({ to, from, subject, text: body, html: html ?? htmlBody(body), replyTo: fromAddress });
+      }
       if (smtpSession) {
         try {
           await smtpSession.send({ from: fromAddress, fromName: senderName || undefined, to, subject, text: body, html });
