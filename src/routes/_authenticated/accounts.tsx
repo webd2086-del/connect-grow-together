@@ -290,6 +290,117 @@ function AccountsPage() {
       </div>
 
 
+      <SectionCard
+        title="Resend — best inbox delivery"
+        description="Send campaigns through Resend instead of your own mailbox. Your domain is signed properly, so messages land in the inbox rather than spam."
+      >
+        <div className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+            <Field label="Your sending domain">
+              <Input
+                placeholder="yourdomain.com"
+                value={domainInput}
+                onChange={(e) => setDomainInput(e.target.value)}
+              />
+            </Field>
+            <Button
+              variant="outline"
+              disabled={busy}
+              onClick={() =>
+                run(async () => {
+                  await addDomain({ data: { name: domainInput } });
+                  setDomainInput("");
+                  await refreshDomains();
+                  toast.success("Domain added — publish the DNS records below");
+                })
+              }
+            >
+              Add domain
+            </Button>
+          </div>
+
+          {(domains ?? []).map((d) => (
+            <div key={d.id} className="rounded-lg border border-border p-3">
+              <div className="flex flex-wrap items-center gap-3">
+                <strong className="text-sm text-foreground">{d.name}</strong>
+                <Pill tone={d.status === "verified" ? "success" : "warning"}>{d.status}</Pill>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="ml-auto"
+                  disabled={busy}
+                  onClick={() =>
+                    run(async () => {
+                      await verifyDomain({ data: { id: d.id } });
+                      await refreshDomains();
+                      toast.message("Checking your DNS records…");
+                    })
+                  }
+                >
+                  <RefreshCw className="size-3.5" /> Check records
+                </Button>
+              </div>
+              {d.status !== "verified" && d.records?.length ? (
+                <div className="mt-3 overflow-x-auto">
+                  <p className="mb-2 text-xs text-muted-foreground">
+                    Add these records where your domain is managed, then press “Check records”.
+                  </p>
+                  <table className="w-full text-left text-xs">
+                    <thead className="text-muted-foreground">
+                      <tr>
+                        <th className="py-1 pr-3">Type</th>
+                        <th className="py-1 pr-3">Name</th>
+                        <th className="py-1">Value</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {d.records.map((r) => (
+                        <tr key={`${r.type}-${r.name}-${r.value}`} className="align-top">
+                          <td className="py-1 pr-3">{r.type}</td>
+                          <td className="py-1 pr-3">{r.name}</td>
+                          <td className="py-1 break-all">
+                            {r.value}
+                            {r.priority ? ` (priority ${r.priority})` : ""}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : null}
+            </div>
+          ))}
+
+          <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+            <Field label="Send campaigns from this address">
+              <Input
+                placeholder="info@yourdomain.com"
+                value={resendAddress}
+                onChange={(e) => setResendAddress(e.target.value)}
+              />
+            </Field>
+            <Button
+              disabled={busy}
+              onClick={() =>
+                run(async () => {
+                  await useResendFor({ data: { address: resendAddress } });
+                  await store.refresh();
+                  setResendAddress("");
+                  toast.success("This address now sends through Resend");
+                })
+              }
+            >
+              <ShieldCheck className="size-4" /> Use Resend for this address
+            </Button>
+          </div>
+          {verified.length === 0 ? (
+            <p className="text-xs text-muted-foreground">
+              Until a domain shows “verified”, Resend will refuse to send from an address on it.
+            </p>
+          ) : null}
+        </div>
+      </SectionCard>
+
       <div className="grid gap-5 lg:grid-cols-2">
         {store.accounts.map((a) => {
           const remaining = Math.max(0, a.dailyLimit - a.sentToday);
