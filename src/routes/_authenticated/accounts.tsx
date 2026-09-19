@@ -157,6 +157,40 @@ function AccountsPage() {
     }
   };
 
+  // ---- Resend (recommended sending route) ---------------------------------
+  const loadDomains = useServerFn(listResendDomains);
+  const addDomain = useServerFn(addResendDomain);
+  const verifyDomain = useServerFn(verifyResendDomain);
+  const useResendFor = useServerFn(connectResendAddress);
+  const [domains, setDomains] = React.useState<ResendDomain[] | null>(null);
+  const [domainInput, setDomainInput] = React.useState("");
+  const [resendAddress, setResendAddress] = React.useState("");
+
+  const refreshDomains = React.useCallback(async () => {
+    try {
+      setDomains(await loadDomains({}));
+    } catch {
+      setDomains([]);
+    }
+  }, [loadDomains]);
+
+  React.useEffect(() => {
+    void refreshDomains();
+  }, [refreshDomains]);
+
+  const run = async (fn: () => Promise<void>) => {
+    setBusy(true);
+    try {
+      await fn();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const verified = (domains ?? []).filter((d) => d.status === "verified");
+
   return (
     <div className="space-y-6">
       <PageHeader
