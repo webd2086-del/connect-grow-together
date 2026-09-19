@@ -59,7 +59,7 @@ export interface EmailAccount {
   id: ID;
   label: string;
   address: string;
-  provider: "google" | "microsoft" | "smtp";
+  provider: "google" | "microsoft" | "smtp" | "resend";
   status: "connected" | "disconnected" | "error";
   categoryIds: ID[];
   dailyLimit: number;
