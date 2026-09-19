@@ -107,10 +107,13 @@ export const sendCampaignBatch = createServerFn({ method: "POST" })
       account = accts?.[0] ?? null;
     }
 
+    const useResend = account?.provider === "resend";
     const { getSmtpConfig } = await import("@/server/smtpAccounts.server");
-    const smtpConfig = account?.provider === "smtp" ? await getSmtpConfig(userId, account.address) : null;
-    const connectionAPIKey = smtpConfig ? null : await getConnectionKeyForUser(userId, GMAIL_CONNECTOR_ID);
-    if (!smtpConfig && !connectionAPIKey) return { ...empty, needsConnection: true };
+    const smtpConfig =
+      !useResend && account?.provider === "smtp" ? await getSmtpConfig(userId, account.address) : null;
+    const connectionAPIKey =
+      useResend || smtpConfig ? null : await getConnectionKeyForUser(userId, GMAIL_CONNECTOR_ID);
+    if (!useResend && !smtpConfig && !connectionAPIKey) return { ...empty, needsConnection: true };
 
     const limit = Math.max(1, Math.min(data.limit ?? campaign.batch_size ?? 20, 50));
 
