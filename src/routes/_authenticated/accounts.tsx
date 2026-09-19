@@ -323,7 +323,7 @@ function AccountsPage() {
             <div key={d.id} className="rounded-lg border border-border p-3">
               <div className="flex flex-wrap items-center gap-3">
                 <strong className="text-sm text-foreground">{d.name}</strong>
-                <Pill tone={d.status === "verified" ? "success" : "warning"}>{d.status}</Pill>
+                <Pill tone={d.status === "verified" ? "success" : "warn"}>{d.status}</Pill>
                 <Button
                   size="sm"
                   variant="ghost"
