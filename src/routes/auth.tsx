@@ -66,6 +66,13 @@ function AuthPage() {
   };
 
   const google = async () => {
+    // Outside Lovable hosting (e.g. localhost), use the database's own Google sign-in.
+    const onLovable = /lovable\.app$|lovableproject\.com$|lovable\.dev$/.test(window.location.hostname);
+    if (!onLovable) {
+      const { error } = await supabase.auth.signInWithOAuth({ provider: "google", options: { redirectTo: window.location.origin } });
+      if (error) toast.error("Google sign-in isn't set up for this environment — use email and password.");
+      return;
+    }
     const result = await lovable.auth.signInWithOAuth("google", { redirect_uri: window.location.origin });
     if (result.error) {
       toast.error("Google sign-in failed");
