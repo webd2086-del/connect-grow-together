@@ -19,15 +19,27 @@ export interface ResendDomain {
   records?: ResendDnsRecord[] | undefined;
 }
 
+/**
+ * Calls the Resend API.
+ * - Self-hosted / local: set RESEND_API_KEY (a normal "re_..." key from resend.com) and leave
+ *   LOVABLE_API_KEY unset (or set RESEND_MODE=direct) — requests go straight to api.resend.com.
+ * - On Lovable: LOVABLE_API_KEY is present and requests go through the connector gateway.
+ */
 export async function resendFetch(path: string, init?: RequestInit): Promise<Response> {
   const lovableKey = process.env["LOVABLE_API_KEY"];
   const resendKey = process.env["RESEND_API_KEY"];
-  if (!lovableKey || !resendKey) throw new Error("Resend is not connected for this project");
+  if (!resendKey) throw new Error("RESEND_API_KEY is not set");
+  const direct = process.env["RESEND_MODE"] === "direct" || !lovableKey;
   const headers = new Headers(init?.headers);
-  headers.set("Authorization", `Bearer ${lovableKey}`);
-  headers.set("X-Connection-Api-Key", resendKey);
+  if (direct) {
+    headers.set("Authorization", `Bearer ${resendKey}`);
+  } else {
+    headers.set("Authorization", `Bearer ${lovableKey}`);
+    headers.set("X-Connection-Api-Key", resendKey);
+  }
   if (init?.body) headers.set("Content-Type", "application/json");
-  return fetch(`${GATEWAY_URL}${path}`, { ...init, headers });
+  const base = direct ? "https://api.resend.com" : GATEWAY_URL;
+  return fetch(`${base}${path}`, { ...init, headers });
 }
 
 /** Domains registered in the workspace Resend account, with their DNS setup records. */
