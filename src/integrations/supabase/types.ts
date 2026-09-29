@@ -522,7 +522,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      record_email_open: { Args: { _recipient_id: string }; Returns: undefined }
     }
     Enums: {
       [_ in never]: never
