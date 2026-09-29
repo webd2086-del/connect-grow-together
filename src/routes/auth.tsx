@@ -82,6 +82,21 @@ function AuthPage() {
     await navigate({ to: "/" });
   };
 
+  const unlock = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ email: WORKSPACE_EMAIL, password });
+      if (error) throw new Error("Incorrect password");
+      await navigate({ to: "/" });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Incorrect password");
+    } finally {
+      setBusy(false);
+    }
+  };
+  void submit; void google; void mode; void setMode; void email; void setEmail;
+
   return (
     <main className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="w-full max-w-sm">
@@ -90,50 +105,20 @@ function AuthPage() {
             <Mail className="size-5" />
           </div>
           <h1 className="text-xl font-semibold tracking-tight text-foreground">OutreachOS</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {mode === "signin" ? "Sign in to your workspace" : "Create your workspace"}
-          </p>
+          <p className="mt-1 text-sm text-muted-foreground">Enter the workspace password</p>
         </div>
-
-        <div className="surface-card p-5">
-          <Button variant="outline" className="w-full" onClick={google} type="button">
-            Continue with Google
-          </Button>
-
-          <div className="my-4 flex items-center gap-3 text-xs text-muted-foreground">
-            <span className="h-px flex-1 bg-border" /> or <span className="h-px flex-1 bg-border" />
+        <form onSubmit={unlock} className="surface-card space-y-3 p-5">
+          <div className="space-y-1.5">
+            <Label htmlFor="password">Password</Label>
+            <Input id="password" type="password" required autoFocus value={password} onChange={(e) => setPassword(e.target.value)} />
           </div>
-
-          <form onSubmit={submit} className="space-y-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                required
-                minLength={6}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-            </div>
-            <Button type="submit" className="w-full" disabled={busy}>
-              {mode === "signin" ? "Sign in" : "Create account"}
-            </Button>
-          </form>
-
-          <button
-            type="button"
-            onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
-            className="mt-4 w-full text-center text-sm text-muted-foreground hover:text-foreground"
-          >
-            {mode === "signin" ? "No account? Create one" : "Already have an account? Sign in"}
-          </button>
-        </div>
+          <Button type="submit" className="w-full" disabled={busy}>
+            Enter
+          </Button>
+        </form>
       </div>
     </main>
   );
 }
+
+const WORKSPACE_EMAIL = "webd2086@gmail.com";
